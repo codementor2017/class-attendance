@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attendance</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; max-width: 900px; }
+  h1 { font-size: 20px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  select, input, button { padding: 8px; font-size: 15px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 14px; }
+  th { background: #f4f4f4; }
+  .status-btn { padding: 5px 9px; border: 1px solid #999; background: #fff; cursor: pointer; border-radius: 4px; }
+  .status-btn.active-present { background: #28a745; color: #fff; border-color: #28a745; }
+  .status-btn.active-absent  { background: #dc3545; color: #fff; border-color: #dc3545; }
+  .status-btn.active-excuse  { background: #ffc107; color: #000; border-color: #ffc107; }
+  #submit { background: #007bff; color: white; border: none; border-radius: 4px; padding: 10px 20px; font-size: 16px; }
+  #submit:disabled { background: #999; }
+  #msg { margin-left: 10px; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Class Attendance</h1>
+
+<div class="row">
+  <label>Class:
+    <select id="classSelect">
+      <option value="">-- Select --</option>
+      <!-- add your classes -->
+      <option>M.1/1</option><option>M.1/2</option>
+      <option>M.2/1</option><option>M.2/2</option>
+      <option>M.3/1</option><option>M.3/2</option>
+      <option>M.4/1</option><option>M.4/2</option>
+      <option>M.5/1</option><option>M.5/2</option>
+      <option>M.6/1</option><option>M.6/2</option>
+    </select>
+  </label>
+  <label>Date: <input type="date" id="dateInput"></label>
+</div>
+
+<div id="formArea" style="display:none;">
+  <table id="attTable">
+    <thead>
+      <tr>
+        <th style="width:60px;">No</th>
+        <th>Name</th>
+        <th style="width:230px;">Status</th>
+        <th style="width:180px;">Remark</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="row" style="margin-top:14px;">
+    <label>Password: <input type="password" id="pw"></label>
+    <button id="submit">Submit Attendance</button>
+    <span id="msg"></span>
+  </div>
+</div>
+
+<script>
+const API_URL = 'PASTE_YOUR_APPS_SCRIPT_URL_HERE';
+const PAGE_PASSWORD = 'PAGE_PASSWORD_HERE'; // for StatiCrypt-level protection
+
+// simple site password gate
+(function gate() {
+  const entered = prompt('Enter page password:');
+  if (entered !== PAGE_PASSWORD) {
+    document.body.innerHTML = '<h2>Access denied.</h2>';
+    throw new Error('denied');
+  }
+})();
+
+// default date = today
+const dateInput = document.getElementById('dateInput');
+dateInput.value = new Date().toISOString().slice(0, 10);
+
+const classSelect = document.getElementById('classSelect');
+const formArea = document.getElementById('formArea');
+const tbody = document.querySelector('#attTable tbody');
+
+classSelect.addEventListener('change', loadStudents);
+
+async function loadStudents() {
+  const cls = classSelect.value;
+  if (!cls) { formArea.style.display = 'none'; return; }
+  tbody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
+  formArea.style.display = 'block';
+
+  const url = API_URL + '?action=getStudents&class=' + encodeURIComponent(cls);
+  try {
+    const res = await fetch(url);
+    const students = await res.json();
+    renderStudents(students);
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="4">Error loading students: ' + e.message + '</td></tr>';
+  }
+}
+
+function renderStudents(students) {
+  tbody.innerHTML = '';
+  students.forEach(s => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${s.no}</td>
+      <td>${s.name}</td>
+      <td class="status-cell"></td>
+      <td><input type="text" class="remark" placeholder=""></td>
+    `;
+    const cell = tr.querySelector('.status-cell');
+    ['Present','Absent','Excuse'].forEach(st => {
+      const btn = document.createElement('button');
+      btn.textContent = st;
+      btn.className = 'status-btn';
+      btn.dataset.status = st;
+      if (st === 'Present') btn.classList.add('active-present');
+      btn.addEventListener('click', () => {
+        cell.querySelectorAll('.status-btn').forEach(b => {
+          b.classList.remove('active-present','active-absent','active-excuse');
+        });
+        const cls = st === 'Present' ? 'active-present'
+                  : st === 'Absent'  ? 'active-absent'
+                  : 'active-excuse';
+        btn.classList.add(cls);
+        tr.dataset.status = st;
+      });
+      cell.appendChild(btn);
+    });
+    tr.dataset.status = 'Present'; // default
+    tr.dataset.no = s.no;
+    tr.dataset.name = s.name;
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('submit').addEventListener('click', async () => {
+  const cls = classSelect.value;
+  const date = dateInput.value;
+  const password = document.getElementById('pw').value;
+  const msg = document.getElementById('msg');
+
+  if (!cls || !date || !password) {
+    msg.textContent = 'Please pick class, date, and password.';
+    msg.style.color = 'red';
+    return;
+  }
+
+  const records = [...tbody.querySelectorAll('tr')].map(tr => ({
+    no: tr.dataset.no,
+    name: tr.dataset.name,
+    status: tr.dataset.status,
+    remark: tr.querySelector('.remark').value
+  }));
+
+  const btn = document.getElementById('submit');
+  btn.disabled = true;
+  msg.textContent = 'Saving...';
+  msg.style.color = '#333';
+
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ password, date, class: cls, records })
+    });
+    msg.textContent = 'Saved ✓';
+    msg.style.color = 'green';
+    btn.disabled = false;
+  } catch (e) {
+    msg.textContent = 'Error: ' + e.message;
+    msg.style.color = 'red';
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
