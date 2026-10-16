@@ -3,179 +3,364 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Attendance</title>
+<title>Class Attendance</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 16px; max-width: 900px; }
-  h1 { font-size: 20px; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-  select, input, button { padding: 8px; font-size: 15px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 14px; }
-  th { background: #f4f4f4; }
-  .status-btn { padding: 5px 9px; border: 1px solid #999; background: #fff; cursor: pointer; border-radius: 4px; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0;
+    padding: 16px;
+    background: #f7f8fa;
+    color: #222;
+  }
+  .container { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  .card {
+    background: #fff;
+    border: 1px solid #e2e5ea;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  label { font-size: 14px; font-weight: 500; }
+  select, input[type="date"], input[type="password"], input[type="text"] {
+    padding: 8px 10px;
+    font-size: 15px;
+    border: 1px solid #c9cfd6;
+    border-radius: 6px;
+    background: #fff;
+    outline: none;
+  }
+  select:focus, input:focus { border-color: #007bff; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 4px;
+  }
+  th, td {
+    border-bottom: 1px solid #e5e8ec;
+    padding: 8px 6px;
+    text-align: left;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+  th {
+    background: #f0f2f5;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+  tbody tr:hover { background: #fafbfc; }
+  .status-btn {
+    padding: 5px 10px;
+    border: 1px solid #c9cfd6;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 13px;
+    margin-right: 4px;
+    transition: all 0.12s;
+  }
+  .status-btn:hover { border-color: #888; }
   .status-btn.active-present { background: #28a745; color: #fff; border-color: #28a745; }
   .status-btn.active-absent  { background: #dc3545; color: #fff; border-color: #dc3545; }
   .status-btn.active-excuse  { background: #ffc107; color: #000; border-color: #ffc107; }
-  #submit { background: #007bff; color: white; border: none; border-radius: 4px; padding: 10px 20px; font-size: 16px; }
-  #submit:disabled { background: #999; }
-  #msg { margin-left: 10px; font-weight: bold; }
+  #submit {
+    background: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  #submit:hover:not(:disabled) { background: #0069d9; }
+  #submit:disabled { background: #9aa5b1; cursor: not-allowed; }
+  #msg { margin-left: 10px; font-weight: 600; font-size: 14px; }
+  .hint { color: #666; font-size: 13px; margin-top: 4px; }
+  .remark {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 13px;
+    border: 1px solid #d5dbe2;
+    border-radius: 5px;
+  }
+  .loading { text-align: center; color: #666; padding: 20px; }
+  /* password overlay */
+  #gate {
+    position: fixed;
+    inset: 0;
+    background: #f0f2f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  #gate .box {
+    background: #fff;
+    padding: 28px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    width: 320px;
+    text-align: center;
+  }
+  #gate h2 { margin: 0 0 16px; font-size: 18px; }
+  #gate input {
+    width: 100%;
+    padding: 10px;
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  #gate button {
+    width: 100%;
+    padding: 10px;
+    font-size: 15px;
+    background: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  #gate button:hover { background: #0069d9; }
+  #gateError { color: #dc3545; font-size: 13px; margin-top: 8px; min-height: 18px; }
+  @media (max-width: 600px) {
+    .status-btn { padding: 4px 8px; font-size: 12px; }
+    th, td { padding: 6px 4px; font-size: 13px; }
+  }
 </style>
 </head>
 <body>
 
-<h1>Class Attendance</h1>
-
-<div class="row">
-  <label>Class:
-    <select id="classSelect">
-      <option value="">-- Select --</option>
-      <!-- add your classes -->
-      <option>M.1/1</option><option>M.1/2</option>
-      <option>M.2/1</option><option>M.2/2</option>
-      <option>M.3/1</option><option>M.3/2</option>
-      <option>M.4/1</option><option>M.4/2</option>
-      <option>M.5/1</option><option>M.5/2</option>
-      <option>M.6/1</option><option>M.6/2</option>
-    </select>
-  </label>
-  <label>Date: <input type="date" id="dateInput"></label>
-</div>
-
-<div id="formArea" style="display:none;">
-  <table id="attTable">
-    <thead>
-      <tr>
-        <th style="width:60px;">No</th>
-        <th>Name</th>
-        <th style="width:230px;">Status</th>
-        <th style="width:180px;">Remark</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div class="row" style="margin-top:14px;">
-    <label>Password: <input type="password" id="pw"></label>
-    <button id="submit">Submit Attendance</button>
-    <span id="msg"></span>
+<!-- ===== Password gate (shown first) ===== -->
+<div id="gate">
+  <div class="box">
+    <h2>🔒 Enter Password</h2>
+    <input type="password" id="gateInput" placeholder="Password" autofocus>
+    <button id="gateBtn">Unlock</button>
+    <div id="gateError"></div>
   </div>
 </div>
 
-<script>
-const API_URL = 'https://script.google.com/macros/s/AKfycby7DYdr7MPIrNiDwmYKJSu-w7YsaQl9zDWlUmFbDGEXsMQY1jj3OEOo4Hq-_dub3xIVYA/exec';
-const PAGE_PASSWORD = '147147'; // for StatiCrypt-level protection
+<!-- ===== Main app (hidden until unlocked) ===== -->
+<div class="container" id="app" style="display:none;">
 
-// simple site password gate
-(function gate() {
-  const entered = prompt('Enter page password:');
-  if (entered !== PAGE_PASSWORD) {
-    document.body.innerHTML = '<h2>Access denied.</h2>';
-    throw new Error('denied');
+  <h1>📋 Class Attendance</h1>
+
+  <div class="card">
+    <div class="row">
+      <label>Class:
+        <select id="classSelect">
+          <option value="">-- Select a class --</option>
+          <option>M.1/1</option><option>M.1/2</option>
+          <option>M.2/1</option><option>M.2/2</option>
+          <option>M.3/1</option><option>M.3/2</option>
+          <option>M.4/1</option><option>M.4/2</option>
+          <option>M.5/1</option><option>M.5/2</option>
+          <option>M.6/1</option><option>M.6/2</option>
+        </select>
+      </label>
+      <label>Date:
+        <input type="date" id="dateInput">
+      </label>
+    </div>
+    <div class="hint">Everyone is marked <b>Present</b> by default — click <b>Absent</b> or <b>Excuse</b> to change.</div>
+  </div>
+
+  <div class="card" id="formArea" style="display:none;">
+    <table id="attTable">
+      <thead>
+        <tr>
+          <th style="width:50px;">No</th>
+          <th style="width:90px;">Student No</th>
+          <th>Name</th>
+          <th style="width:230px;">Status</th>
+          <th style="width:180px;">Remark</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="row" style="margin-top:16px;">
+      <label>Password:
+        <input type="password" id="pw" placeholder="Submit password">
+      </label>
+      <button id="submit">Submit Attendance</button>
+      <span id="msg"></span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — CHANGE THESE TWO VALUES
+   ============================================================ */
+const API_URL = 'https://script.google.com/macros/s/AKfycbwhra8JVzZtPfspvl_WO3PIeZdMhfR2voo-nw921G2aTodFD4T1M7YpQU6bWWhPiPGdsA/exec';
+const PAGE_PASSWORD = '147147';
+/* ============================================================ */
+
+
+/* ---------- 1. Password gate ---------- */
+(function () {
+  const gate = document.getElementById('gate');
+  const app = document.getElementById('app');
+  const input = document.getElementById('gateInput');
+  const btn = document.getElementById('gateBtn');
+  const err = document.getElementById('gateError');
+
+  function tryUnlock() {
+    if (input.value === PAGE_PASSWORD) {
+      gate.style.display = 'none';
+      app.style.display = 'block';
+      initApp();
+    } else {
+      err.textContent = 'Wrong password';
+      input.value = '';
+      input.focus();
+    }
   }
+  btn.addEventListener('click', tryUnlock);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
 })();
 
-// default date = today
-const dateInput = document.getElementById('dateInput');
-dateInput.value = new Date().toISOString().slice(0, 10);
 
-const classSelect = document.getElementById('classSelect');
-const formArea = document.getElementById('formArea');
-const tbody = document.querySelector('#attTable tbody');
-
-classSelect.addEventListener('change', loadStudents);
-
-async function loadStudents() {
-  const cls = classSelect.value;
-  if (!cls) { formArea.style.display = 'none'; return; }
-  tbody.innerHTML = '<tr><td colspan="4">Loading...</td></tr>';
-  formArea.style.display = 'block';
-
-  const url = API_URL + '?action=getStudents&class=' + encodeURIComponent(cls);
-  try {
-    const res = await fetch(url);
-    const students = await res.json();
-    renderStudents(students);
-  } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="4">Error loading students: ' + e.message + '</td></tr>';
-  }
-}
-
-function renderStudents(students) {
-  tbody.innerHTML = '';
-  students.forEach(s => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${s.no}</td>
-      <td>${s.name}</td>
-      <td class="status-cell"></td>
-      <td><input type="text" class="remark" placeholder=""></td>
-    `;
-    const cell = tr.querySelector('.status-cell');
-    ['Present','Absent','Excuse'].forEach(st => {
-      const btn = document.createElement('button');
-      btn.textContent = st;
-      btn.className = 'status-btn';
-      btn.dataset.status = st;
-      if (st === 'Present') btn.classList.add('active-present');
-      btn.addEventListener('click', () => {
-        cell.querySelectorAll('.status-btn').forEach(b => {
-          b.classList.remove('active-present','active-absent','active-excuse');
-        });
-        const cls = st === 'Present' ? 'active-present'
-                  : st === 'Absent'  ? 'active-absent'
-                  : 'active-excuse';
-        btn.classList.add(cls);
-        tr.dataset.status = st;
-      });
-      cell.appendChild(btn);
-    });
-    tr.dataset.status = 'Present'; // default
-    tr.dataset.no = s.no;
-    tr.dataset.name = s.name;
-    tbody.appendChild(tr);
-  });
-}
-
-document.getElementById('submit').addEventListener('click', async () => {
-  const cls = classSelect.value;
-  const date = dateInput.value;
-  const password = document.getElementById('pw').value;
+/* ---------- 2. Main app ---------- */
+function initApp() {
+  const dateInput = document.getElementById('dateInput');
+  const classSelect = document.getElementById('classSelect');
+  const formArea = document.getElementById('formArea');
+  const tbody = document.querySelector('#attTable tbody');
+  const submitBtn = document.getElementById('submit');
   const msg = document.getElementById('msg');
 
-  if (!cls || !date || !password) {
-    msg.textContent = 'Please pick class, date, and password.';
-    msg.style.color = 'red';
-    return;
+  // default today
+  dateInput.value = new Date().toISOString().slice(0, 10);
+
+  classSelect.addEventListener('change', loadStudents);
+
+  async function loadStudents() {
+    const cls = classSelect.value;
+    if (!cls) {
+      formArea.style.display = 'none';
+      return;
+    }
+    formArea.style.display = 'block';
+    tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading students...</td></tr>';
+
+    try {
+      const url = API_URL + '?action=getStudents&class=' + encodeURIComponent(cls);
+      const res = await fetch(url);
+      const students = await res.json();
+      renderStudents(students);
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="5" class="loading">Error: ' + e.message + '</td></tr>';
+    }
   }
 
-  const records = [...tbody.querySelectorAll('tr')].map(tr => ({
-    no: tr.dataset.no,
-    name: tr.dataset.name,
-    status: tr.dataset.status,
-    remark: tr.querySelector('.remark').value
-  }));
+  function renderStudents(students) {
+    tbody.innerHTML = '';
 
-  const btn = document.getElementById('submit');
-  btn.disabled = true;
-  msg.textContent = 'Saving...';
-  msg.style.color = '#333';
+    if (!students.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="loading">No students found for this class.</td></tr>';
+      return;
+    }
 
-  try {
-    await fetch(API_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ password, date, class: cls, records })
+    students.forEach(s => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${s.classNo}</td>
+        <td>${s.studentNo}</td>
+        <td>${s.firstname} ${s.lastname}</td>
+        <td class="status-cell"></td>
+        <td><input type="text" class="remark" placeholder=""></td>
+      `;
+
+      const cell = tr.querySelector('.status-cell');
+      ['Present', 'Absent', 'Excuse'].forEach(st => {
+        const btn = document.createElement('button');
+        btn.textContent = st;
+        btn.className = 'status-btn';
+        btn.dataset.status = st;
+        if (st === 'Present') btn.classList.add('active-present');
+        btn.addEventListener('click', () => {
+          cell.querySelectorAll('.status-btn').forEach(b => {
+            b.classList.remove('active-present', 'active-absent', 'active-excuse');
+          });
+          const cls = st === 'Present' ? 'active-present'
+                    : st === 'Absent'  ? 'active-absent'
+                    : 'active-excuse';
+          btn.classList.add(cls);
+          tr.dataset.status = st;
+        });
+        cell.appendChild(btn);
+      });
+
+      // store row data
+      tr.dataset.status    = 'Present';
+      tr.dataset.classNo   = s.classNo;
+      tr.dataset.studentNo = s.studentNo;
+      tr.dataset.firstname = s.firstname;
+      tr.dataset.lastname  = s.lastname;
+
+      tbody.appendChild(tr);
     });
-    msg.textContent = 'Saved ✓';
-    msg.style.color = 'green';
-    btn.disabled = false;
-  } catch (e) {
-    msg.textContent = 'Error: ' + e.message;
-    msg.style.color = 'red';
-    btn.disabled = false;
   }
-});
+
+  submitBtn.addEventListener('click', async () => {
+    const cls = classSelect.value;
+    const date = dateInput.value;
+    const password = document.getElementById('pw').value;
+
+    if (!cls || !date || !password) {
+      msg.textContent = 'Please pick class, date, and password.';
+      msg.style.color = 'red';
+      return;
+    }
+
+    const records = [...tbody.querySelectorAll('tr')].map(tr => ({
+      classNo:   tr.dataset.classNo,
+      studentNo: tr.dataset.studentNo,
+      firstname: tr.dataset.firstname,
+      lastname:  tr.dataset.lastname,
+      status:    tr.dataset.status,
+      remark:    tr.querySelector('.remark').value
+    }));
+
+    if (!records.length) {
+      msg.textContent = 'No students to submit.';
+      msg.style.color = 'red';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    msg.textContent = 'Saving...';
+    msg.style.color = '#333';
+
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ password, date, class: cls, records })
+      });
+      msg.textContent = `Saved ${records.length} records ✓`;
+      msg.style.color = 'green';
+    } catch (e) {
+      msg.textContent = 'Error: ' + e.message;
+      msg.style.color = 'red';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+}
 </script>
 </body>
 </html>
