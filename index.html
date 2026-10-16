@@ -94,6 +94,7 @@
     border-radius: 5px;
   }
   .loading { text-align: center; color: #666; padding: 20px; }
+
   /* password overlay */
   #gate {
     position: fixed;
@@ -131,6 +132,7 @@
   }
   #gate button:hover { background: #0069d9; }
   #gateError { color: #dc3545; font-size: 13px; margin-top: 8px; min-height: 18px; }
+
   @media (max-width: 600px) {
     .status-btn { padding: 4px 8px; font-size: 12px; }
     th, td { padding: 6px 4px; font-size: 13px; }
@@ -201,7 +203,7 @@
 
 <script>
 /* ============================================================
-   CONFIG — CHANGE THESE TWO VALUES
+   CONFIG
    ============================================================ */
 const API_URL = 'https://script.google.com/macros/s/AKfycbzjrSutLP5invNT5txNCltc55k-FqQJ_WIYUgXZN8njWlAELcxm2CFdZtCumcCuZC7AaA/exec';
 const PAGE_PASSWORD = '987987';
@@ -234,12 +236,13 @@ const PAGE_PASSWORD = '987987';
 
 /* ---------- 2. Main app ---------- */
 function initApp() {
-  const dateInput = document.getElementById('dateInput');
+  const dateInput   = document.getElementById('dateInput');
   const classSelect = document.getElementById('classSelect');
-  const formArea = document.getElementById('formArea');
-  const tbody = document.querySelector('#attTable tbody');
-  const submitBtn = document.getElementById('submit');
-  const msg = document.getElementById('msg');
+  const formArea    = document.getElementById('formArea');
+  const tbody       = document.querySelector('#attTable tbody');
+  const submitBtn   = document.getElementById('submit');
+  const msg         = document.getElementById('msg');
+  const pwInput     = document.getElementById('pw');
 
   // default today
   dateInput.value = new Date().toISOString().slice(0, 10);
@@ -317,7 +320,7 @@ function initApp() {
   submitBtn.addEventListener('click', async () => {
     const cls = classSelect.value;
     const date = dateInput.value;
-    const password = document.getElementById('pw').value;
+    const password = pwInput.value;
 
     if (!cls || !date || !password) {
       msg.textContent = 'Please pick class, date, and password.';
@@ -351,15 +354,47 @@ function initApp() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ password, date, class: cls, records })
       });
+
       msg.textContent = `Saved ${records.length} records ✓`;
       msg.style.color = 'green';
+
+      // After 1.5 seconds, reset back to the class picker
+      setTimeout(resetToPicker, 1500);
+
     } catch (e) {
       msg.textContent = 'Error: ' + e.message;
       msg.style.color = 'red';
-    } finally {
       submitBtn.disabled = false;
     }
   });
+
+  /* ---------- Reset back to the class picker ---------- */
+  function resetToPicker() {
+    // 1. clear the table
+    tbody.innerHTML = '';
+
+    // 2. reset class dropdown
+    classSelect.value = '';
+
+    // 3. reset date to today
+    dateInput.value = new Date().toISOString().slice(0, 10);
+
+    // 4. clear submit password
+    pwInput.value = '';
+
+    // 5. clear message
+    msg.textContent = '';
+    msg.style.color = '';
+
+    // 6. hide the form area
+    formArea.style.display = 'none';
+
+    // 7. re-enable submit button for next time
+    submitBtn.disabled = false;
+
+    // 8. scroll back to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 }
 </script>
 </body>
