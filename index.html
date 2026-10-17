@@ -318,55 +318,64 @@ function initApp() {
   }
 
   submitBtn.addEventListener('click', async () => {
-    const cls = classSelect.value;
-    const date = dateInput.value;
-    const password = pwInput.value;
+  const cls = classSelect.value;
+  const date = dateInput.value;
+  const password = pwInput.value;
 
-    if (!cls || !date || !password) {
-      msg.textContent = 'Please pick class, date, and password.';
-      msg.style.color = 'red';
-      return;
-    }
+  if (!cls || !date || !password) {
+    msg.textContent = 'Please pick class, date, and password.';
+    msg.style.color = 'red';
+    return;
+  }
 
-    const records = [...tbody.querySelectorAll('tr')].map(tr => ({
-      classNo:   tr.dataset.classNo,
-      studentNo: tr.dataset.studentNo,
-      firstname: tr.dataset.firstname,
-      lastname:  tr.dataset.lastname,
-      status:    tr.dataset.status,
-      remark:    tr.querySelector('.remark').value
-    }));
+  const records = [...tbody.querySelectorAll('tr')].map(tr => ({
+    classNo:   tr.dataset.classNo,
+    studentNo: tr.dataset.studentNo,
+    firstname: tr.dataset.firstname,
+    lastname:  tr.dataset.lastname,
+    status:    tr.dataset.status,
+    remark:    tr.querySelector('.remark').value
+  }));
 
-    if (!records.length) {
-      msg.textContent = 'No students to submit.';
-      msg.style.color = 'red';
-      return;
-    }
+  if (!records.length) {
+    msg.textContent = 'No students to submit.';
+    msg.style.color = 'red';
+    return;
+  }
 
-    submitBtn.disabled = true;
-    msg.textContent = 'Saving...';
-    msg.style.color = '#333';
+  submitBtn.disabled = true;
+  msg.textContent = 'Saving...';
+  msg.style.color = '#333';
 
-    try {
-      await fetch(API_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ password, date, class: cls, records })
-      });
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      // NOTE: no mode: 'no-cors' — we want to read the response
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ password, date, class: cls, records })
+    });
 
-      msg.textContent = `Saved ${records.length} records ✓`;
-      msg.style.color = 'green';
+    const data = await res.json();
 
-      // After 1.5 seconds, reset back to the class picker
-      setTimeout(resetToPicker, 1500);
-
-    } catch (e) {
-      msg.textContent = 'Error: ' + e.message;
+    if (!data.ok) {
+      // Server rejected — show the real error
+      msg.textContent = '❌ ' + (data.error || 'Submission failed');
       msg.style.color = 'red';
       submitBtn.disabled = false;
+      return;
     }
-  });
+
+    // Success
+    msg.textContent = `Saved ${data.saved} records ✓`;
+    msg.style.color = 'green';
+    setTimeout(resetToPicker, 1500);
+
+  } catch (e) {
+    msg.textContent = 'Network error: ' + e.message;
+    msg.style.color = 'red';
+    submitBtn.disabled = false;
+  }
+});
 
   /* ---------- Reset back to the class picker ---------- */
   function resetToPicker() {
