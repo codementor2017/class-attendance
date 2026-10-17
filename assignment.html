@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assignment Tracking</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0; padding: 16px; background: #f7f8fa; color: #222;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  .card {
+    background: #fff; border: 1px solid #e2e5ea;
+    border-radius: 8px; padding: 16px; margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  label { font-size: 14px; font-weight: 500; }
+  select, input[type="date"], input[type="text"], input[type="password"] {
+    padding: 8px 10px; font-size: 15px;
+    border: 1px solid #c9cfd6; border-radius: 6px; background: #fff;
+  }
+  select:focus, input:focus { border-color: #007bff; outline: none; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td {
+    border-bottom: 1px solid #e5e8ec;
+    padding: 8px 6px; text-align: left; font-size: 14px;
+  }
+  th { background: #f0f2f5; font-weight: 600; }
+  .status-btn {
+    padding: 5px 10px; border: 1px solid #c9cfd6;
+    background: #fff; cursor: pointer; border-radius: 5px;
+    font-size: 13px; margin-right: 4px;
+  }
+  .status-btn.active-submitted { background: #28a745; color: #fff; border-color: #28a745; }
+  .status-btn.active-nosub     { background: #dc3545; color: #fff; border-color: #dc3545; }
+  .status-btn.active-late      { background: #ffc107; color: #000; border-color: #ffc107; }
+  .submitted-date { font-size: 12px; color: #555; }
+  #submit {
+    background: #007bff; color: #fff; border: none;
+    border-radius: 6px; padding: 10px 20px; font-size: 15px;
+    font-weight: 500; cursor: pointer;
+  }
+  #submit:hover:not(:disabled) { background: #0069d9; }
+  #submit:disabled { background: #9aa5b1; cursor: not-allowed; }
+  #msg { margin-left: 10px; font-weight: 600; font-size: 14px; }
+  .loading { text-align: center; color: #666; padding: 20px; }
+  #gate { position: fixed; inset: 0; background: #f0f2f5; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  #gate .box { background: #fff; padding: 28px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 320px; text-align: center; }
+  #gate h2 { margin: 0 0 16px; font-size: 18px; }
+  #gate input, #gate button { width: 100%; padding: 10px; font-size: 15px; margin-bottom: 10px; }
+  #gate button { background: #007bff; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+  #gateError { color: #dc3545; font-size: 13px; min-height: 18px; }
+  .remark { width: 100%; padding: 6px 8px; font-size: 13px; border: 1px solid #d5dbe2; border-radius: 5px; }
+  .hint { color: #666; font-size: 13px; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="box">
+    <h2>🔒 Enter Password</h2>
+    <input type="password" id="gateInput" placeholder="Password" autofocus>
+    <button id="gateBtn">Unlock</button>
+    <div id="gateError"></div>
+  </div>
+</div>
+
+<div class="container" id="app" style="display:none;">
+  <h1>📝 Assignment Tracking</h1>
+
+  <div class="card">
+    <div class="row">
+      <label>Class:
+        <select id="classSelect">
+          <option value="">-- Select a class --</option>
+          <option>M.1/1</option><option>M.1/2</option>
+          <option>M.2/1</option><option>M.2/2</option>
+          <option>M.3/1</option><option>M.3/2</option>
+          <option>M.4/1</option><option>M.4/2</option>
+          <option>M.5/1</option><option>M.5/2</option>
+          <option>M.6/1</option><option>M.6/2</option>
+        </select>
+      </label>
+      <label>Assignment:
+        <input type="text" id="assignmentInput" placeholder="e.g., Essay 1" style="width:200px;">
+      </label>
+      <label>Due date:
+        <input type="date" id="dueDateInput">
+      </label>
+      <label>Date marked:
+        <input type="date" id="dateInput">
+      </label>
+    </div>
+    <div class="hint">All students default to <b>Not submitted</b>. Click <b>Submitted</b> for those who handed it in.</div>
+  </div>
+
+  <div class="card" id="formArea" style="display:none;">
+    <table id="assignTable">
+      <thead>
+        <tr>
+          <th style="width:50px;">No</th>
+          <th style="width:90px;">Student No</th>
+          <th>Name</th>
+          <th style="width:240px;">Status</th>
+          <th style="width:140px;">Submitted</th>
+          <th style="width:180px;">Remark</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="row" style="margin-top:16px;">
+      <label>Password:
+        <input type="password" id="pw" placeholder="Submit password">
+      </label>
+      <button id="submit">Submit Assignments</button>
+      <span id="msg"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = 'PASTE_YOUR_APPS_SCRIPT_URL_HERE';
+const PAGE_PASSWORD = 'PASTE_YOUR_PAGE_PASSWORD_HERE';
+
+/* ---- gate ---- */
+(function () {
+  const gate = document.getElementById('gate');
+  const app = document.getElementById('app');
+  const input = document.getElementById('gateInput');
+  const err = document.getElementById('gateError');
+  function go() {
+    if (input.value === PAGE_PASSWORD) {
+      gate.style.display = 'none';
+      app.style.display = 'block';
+      init();
+    } else {
+      err.textContent = 'Wrong password';
+      input.value = '';
+    }
+  }
+  document.getElementById('gateBtn').addEventListener('click', go);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+})();
+
+function init() {
+  const dateInput = document.getElementById('dateInput');
+  const dueDateInput = document.getElementById('dueDateInput');
+  const classSelect = document.getElementById('classSelect');
+  const assignmentInput = document.getElementById('assignmentInput');
+  const formArea = document.getElementById('formArea');
+  const tbody = document.querySelector('#assignTable tbody');
+  const submitBtn = document.getElementById('submit');
+  const msg = document.getElementById('msg');
+  const pwInput = document.getElementById('pw');
+
+  const today = new Date().toISOString().slice(0, 10);
+  dateInput.value = today;
+  dueDateInput.value = today;
+
+  classSelect.addEventListener('change', loadStudents);
+
+  async function loadStudents() {
+    const cls = classSelect.value;
+    if (!cls) { formArea.style.display = 'none'; return; }
+    formArea.style.display = 'block';
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
+    try {
+      const url = API_URL + '?action=getStudents&class=' + encodeURIComponent(cls);
+      const res = await fetch(url);
+      const students = await res.json();
+      renderStudents(students);
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="6" class="loading">Error: ' + e.message + '</td></tr>';
+    }
+  }
+
+  function renderStudents(students) {
+    tbody.innerHTML = '';
+    if (!students.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="loading">No students found.</td></tr>';
+      return;
+    }
+    students.forEach(s => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${s.classNo}</td>
+        <td>${s.studentNo}</td>
+        <td>${s.firstname} ${s.lastname}</td>
+        <td class="status-cell"></td>
+        <td class="submitted-cell"><span class="submitted-date">—</span></td>
+        <td><input type="text" class="remark" placeholder=""></td>
+      `;
+      const cell = tr.querySelector('.status-cell');
+      ['Submitted', 'Not submitted'].forEach(st => {
+        const btn = document.createElement('button');
+        btn.textContent = st;
+        btn.className = 'status-btn';
+        btn.dataset.status = st;
+        if (st === 'Not submitted') btn.classList.add('active-nosub');
+        btn.addEventListener('click', () => {
+          cell.querySelectorAll('.status-btn').forEach(b => {
+            b.classList.remove('active-submitted', 'active-nosub', 'active-late');
+          });
+          btn.classList.add(st === 'Submitted' ? 'active-submitted' : 'active-nosub');
+          tr.dataset.status = st;
+          updateSubmittedCell(tr);
+        });
+        cell.appendChild(btn);
+      });
+
+      tr.dataset.status    = 'Not submitted';
+      tr.dataset.classNo   = s.classNo;
+      tr.dataset.studentNo = s.studentNo;
+      tr.dataset.firstname = s.firstname;
+      tr.dataset.lastname  = s.lastname;
+
+      // recompute if the due date changes
+      dueDateInput.addEventListener('change', () => updateSubmittedCell(tr));
+      dateInput.addEventListener('change', () => updateSubmittedCell(tr));
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function updateSubmittedCell(tr) {
+    const cell = tr.querySelector('.submitted-cell');
+    const due = dueDateInput.value;
+    const today = dateInput.value;
+
+    if (tr.dataset.status !== 'Submitted') {
+      cell.innerHTML = '<span class="submitted-date">—</span>';
+      tr.dataset.computed = 'Not submitted';
+      return;
+    }
+
+    // Submitted. Compare today vs due date to decide Late.
+    const isLate = due && today > due;
+    if (isLate) {
+      tr.dataset.computed = 'Late';
+      cell.innerHTML = `<span class="submitted-date" style="color:#856404;">${today} (Late)</span>`;
+      // swap active class so it looks yellow
+      tr.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active-submitted', 'active-nosub'));
+      tr.querySelectorAll('.status-btn').forEach(b => {
+        if (b.dataset.status === 'Submitted') b.classList.add('active-late');
+      });
+    } else {
+      tr.dataset.computed = 'Submitted';
+      cell.innerHTML = `<span class="submitted-date" style="color:#155724;">${today} ✓</span>`;
+      tr.querySelectorAll('.status-btn').forEach(b => {
+        b.classList.remove('active-late');
+        if (b.dataset.status === 'Submitted') b.classList.add('active-submitted');
+      });
+    }
+  }
+
+  submitBtn.addEventListener('click', async () => {
+    const cls = classSelect.value;
+    const date = dateInput.value;
+    const dueDate = dueDateInput.value;
+    const assignment = assignmentInput.value.trim();
+    const password = pwInput.value;
+
+    if (!cls || !date || !dueDate || !assignment || !password) {
+      msg.textContent = 'Please fill class, assignment, due date, date marked, and password.';
+      msg.style.color = 'red';
+      return;
+    }
+
+    const records = [...tbody.querySelectorAll('tr')].map(tr => ({
+      classNo:   tr.dataset.classNo,
+      studentNo: tr.dataset.studentNo,
+      firstname: tr.dataset.firstname,
+      lastname:  tr.dataset.lastname,
+      status:    tr.dataset.computed || 'Not submitted',
+      remark:    tr.querySelector('.remark').value
+    }));
+
+    if (!records.length) {
+      msg.textContent = 'No students to submit.';
+      msg.style.color = 'red';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    msg.textContent = 'Saving...';
+    msg.style.color = '#333';
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          type: 'assignment',
+          password, date, dueDate, assignment, class: cls, records
+        })
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        msg.textContent = '❌ ' + (data.error || 'Failed');
+        msg.style.color = 'red';
+        submitBtn.disabled = false;
+        return;
+      }
+      msg.textContent = `Saved ${data.saved} records ✓`;
+      msg.style.color = 'green';
+      setTimeout(reset, 1500);
+    } catch (e) {
+      msg.textContent = 'Error: ' + e.message;
+      msg.style.color = 'red';
+      submitBtn.disabled = false;
+    }
+  });
+
+  function reset() {
+    tbody.innerHTML = '';
+    classSelect.value = '';
+    assignmentInput.value = '';
+    dateInput.value = new Date().toISOString().slice(0, 10);
+    dueDateInput.value = new Date().toISOString().slice(0, 10);
+    pwInput.value = '';
+    msg.textContent = '';
+    msg.style.color = '';
+    formArea.style.display = 'none';
+    submitBtn.disabled = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+</script>
+</body>
+</html>
