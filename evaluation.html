@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evaluation & Behavior Tracking</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0; padding: 16px; background: #f7f8fa; color: #222;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  h2 { font-size: 16px; margin: 0 0 12px; color: #333; }
+  .card {
+    background: #fff; border: 1px solid #e2e5ea;
+    border-radius: 8px; padding: 16px; margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  label { font-size: 14px; font-weight: 500; }
+  select, input[type="date"], input[type="text"], input[type="password"], input[type="number"] {
+    padding: 8px 10px; font-size: 15px;
+    border: 1px solid #c9cfd6; border-radius: 6px; background: #fff;
+  }
+  select:focus, input:focus { border-color: #007bff; outline: none; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td {
+    border-bottom: 1px solid #e5e8ec;
+    padding: 8px 6px; text-align: left; font-size: 14px;
+    vertical-align: middle;
+  }
+  th { background: #f0f2f5; font-weight: 600; position: sticky; top: 0; }
+  tbody tr:hover { background: #fafbfc; }
+
+  /* status buttons */
+  .status-btn {
+    padding: 4px 8px; border: 1px solid #c9cfd6;
+    background: #fff; cursor: pointer; border-radius: 5px;
+    font-size: 12px; margin-right: 3px;
+    transition: all 0.12s;
+  }
+  .status-btn:hover { border-color: #888; }
+  .status-btn.active-pass    { background: #28a745; color: #fff; border-color: #28a745; }
+  .status-btn.active-fail    { background: #dc3545; color: #fff; border-color: #dc3545; }
+  .status-btn.active-pending { background: #ffc107; color: #000; border-color: #ffc107; }
+
+  /* behavior buttons */
+  .beh-btn {
+    padding: 4px 8px; border: 1px solid #c9cfd6;
+    background: #fff; cursor: pointer; border-radius: 5px;
+    font-size: 12px; margin-right: 3px;
+    transition: all 0.12s;
+  }
+  .beh-btn:hover { border-color: #888; }
+  .beh-btn.active-consistently { background: #28a745; color: #fff; border-color: #28a745; }
+  .beh-btn.active-sometimes    { background: #ffc107; color: #000; border-color: #ffc107; }
+  .beh-btn.active-rarely       { background: #dc3545; color: #fff; border-color: #dc3545; }
+
+  #submit {
+    background: #007bff; color: #fff; border: none;
+    border-radius: 6px; padding: 10px 20px; font-size: 15px;
+    font-weight: 500; cursor: pointer;
+  }
+  #submit:hover:not(:disabled) { background: #0069d9; }
+  #submit:disabled { background: #9aa5b1; cursor: not-allowed; }
+  #msg { margin-left: 10px; font-weight: 600; font-size: 14px; }
+  .loading { text-align: center; color: #666; padding: 20px; }
+
+  #gate { position: fixed; inset: 0; background: #f0f2f5; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  #gate .box { background: #fff; padding: 28px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 320px; text-align: center; }
+  #gate h2 { margin: 0 0 16px; font-size: 18px; }
+  #gate input, #gate button { width: 100%; padding: 10px; font-size: 15px; margin-bottom: 10px; }
+  #gate button { background: #007bff; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+  #gate button:hover { background: #0069d9; }
+  #gateError { color: #dc3545; font-size: 13px; min-height: 18px; }
+
+  .remark { width: 100%; padding: 6px 8px; font-size: 13px; border: 1px solid #d5dbe2; border-radius: 5px; }
+  .hint { color: #666; font-size: 13px; margin-top: 6px; }
+  .score-input {
+    width: 70px; padding: 6px 8px; font-size: 14px;
+    border: 1px solid #d5dbe2; border-radius: 5px; text-align: center;
+  }
+  .score-input:focus { border-color: #007bff; outline: none; }
+  .total-cell { font-weight: 700; color: #007bff; font-size: 14px; }
+  .grade-badge {
+    display: inline-block; padding: 3px 8px; border-radius: 4px;
+    font-weight: 700; font-size: 12px;
+  }
+  .grade-a { background: #d4edda; color: #155724; }
+  .grade-b { background: #cce5ff; color: #004085; }
+  .grade-c { background: #fff3cd; color: #856404; }
+  .grade-d { background: #ffe5d0; color: #8a4b08; }
+  .grade-f { background: #f8d7da; color: #721c24; }
+
+  /* Behavior cell */
+  .behavior-cell { font-size: 12px; }
+  .behavior-label { font-weight: 600; color: #444; display: block; margin-bottom: 3px; }
+  .behavior-btns { display: flex; flex-wrap: wrap; gap: 2px; }
+
+  /* topnav */
+  .topnav {
+    display: flex; gap: 4px;
+    background: #fff;
+    border-bottom: 1px solid #e2e5ea;
+    padding: 8px 16px;
+    margin: -16px -16px 16px -16px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topnav a {
+    padding: 8px 14px; text-decoration: none;
+    color: #444; font-size: 14px; font-weight: 500;
+    border-radius: 6px;
+  }
+  .topnav a:hover { background: #f0f2f5; }
+  .topnav a.active { background: #007bff; color: #fff; }
+
+  /* Section divider */
+  .section-divider {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff; padding: 8px 14px; border-radius: 6px;
+    font-size: 13px; font-weight: 600; margin: 16px 0 10px;
+    display: inline-block;
+  }
+  .section-divider.behavior {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  }
+
+  /* Legend */
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    font-size: 12px; color: #555; margin-top: 8px;
+  }
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .legend .dot {
+    display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+  }
+
+  @media (max-width: 900px) {
+    th, td { font-size: 12px; padding: 6px 4px; }
+    .status-btn, .beh-btn { padding: 3px 6px; font-size: 11px; }
+    .score-input { width: 55px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Top navigation ===== -->
+<nav class="topnav">
+  <a href="index.html">📋 Attendance</a>
+  <a href="assignment.html">📝 Assignments</a>
+  <a href="evaluation.html" class="active">⭐ Evaluations</a>
+</nav>
+
+<!-- ===== Password gate ===== -->
+<div id="gate">
+  <div class="box">
+    <h2>🔒 Enter Password</h2>
+    <input type="password" id="gateInput" placeholder="Password" autofocus>
+    <button id="gateBtn">Unlock</button>
+    <div id="gateError"></div>
+  </div>
+</div>
+
+<!-- ===== Main app ===== -->
+<div class="container" id="app" style="display:none;">
+  <h1>⭐ Evaluation &amp; Behavior Tracking</h1>
+
+  <!-- ===== Settings card ===== -->
+  <div class="card">
+    <div class="row">
+      <label>Class:
+        <select id="classSelect">
+          <option value="">-- Select a class --</option>
+          <option>M.1/1</option><option>M.1/2</option>
+          <option>M.2/1</option><option>M.2/2</option>
+          <option>M.3/1</option><option>M.3/2</option>
+          <option>M.4/1</option><option>M.4/2</option>
+          <option>M.5/1</option><option>M.5/2</option>
+          <option>M.6/1</option><option>M.6/2</option>
+        </select>
+      </label>
+      <label>Evaluation:
+        <select id="evalType">
+          <option value="">-- Select type --</option>
+          <option>Quiz</option>
+          <option>Midterm Exam</option>
+          <option>Final Exam</option>
+          <option>Project</option>
+          <option>Performance</option>
+          <option>End of Term Report</option>
+        </select>
+      </label>
+      <label>Name:
+        <input type="text" id="evalName" placeholder="e.g., Quiz 1" style="width:150px;">
+      </label>
+      <label>Date:
+        <input type="date" id="dateInput">
+      </label>
+      <label>Max score:
+        <input type="number" id="maxScore" value="100" min="1" style="width:70px;">
+      </label>
+    </div>
+    <div class="hint">
+      Enter academic score (0–<span id="maxDisplay">100</span>) AND rate classroom behavior.
+      Total, grade, and status are calculated automatically.
+    </div>
+  </div>
+
+  <!-- ===== Evaluation table ===== -->
+  <div class="card" id="formArea" style="display:none;">
+
+    <div class="section-divider">📊 Academic Evaluation</div>
+
+    <table id="evalTable">
+      <thead>
+        <tr>
+          <th style="width:45px;">No</th>
+          <th style="width:80px;">Student No</th>
+          <th style="width:150px;">Name</th>
+          <th style="width:80px;">Score</th>
+          <th style="width:80px;">Total</th>
+          <th style="width:60px;">Grade</th>
+          <th style="width:180px;">Status</th>
+          <th style="width:150px;">Remark</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="section-divider behavior">🌟 Classroom Behavior</div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:#28a745;"></span> Consistently — Always shows this</span>
+      <span><span class="dot" style="background:#ffc107;"></span> Sometimes — Shows this some of the time</span>
+      <span><span class="dot" style="background:#dc3545;"></span> Rarely — Seldom shows this</span>
+    </div>
+
+    <table id="behaviorTable" style="margin-top:12px;">
+      <thead>
+        <tr>
+          <th style="width:45px;">No</th>
+          <th style="width:150px;">Name</th>
+          <th style="width:170px;">Participation</th>
+          <th style="width:170px;">Focus &amp; Attention</th>
+          <th style="width:170px;">Respect &amp; Cooperation</th>
+          <th style="width:170px;">Responsibility</th>
+          <th style="width:170px;">Collaboration</th>
+          <th>Teacher's Comment</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="row" style="margin-top:16px;">
+      <label>Password:
+        <input type="password" id="pw" placeholder="Submit password">
+      </label>
+      <button id="submit">Submit Evaluations</button>
+      <span id="msg"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbygLCEi_K1YjWgdIy2iqhp5LyuXunK-9y32xUfF1NzuKOf_d5DWBh9SCH327YlCZsUzWg/exec';
+const PAGE_PASSWORD = '987987';
+
+const BEHAVIORS = [
+  { key: 'participation', label: 'Participation' },
+  { key: 'focus',         label: 'Focus & Attention' },
+  { key: 'respect',       label: 'Respect & Cooperation' },
+  { key: 'responsibility',label: 'Responsibility' },
+  { key: 'collaboration', label: 'Collaboration' }
+];
+
+/* ---------- 1. Password gate ---------- */
+(function () {
+  const gate = document.getElementById('gate');
+  const app = document.getElementById('app');
+  const input = document.getElementById('gateInput');
+  const btn = document.getElementById('gateBtn');
+  const err = document.getElementById('gateError');
+
+  function tryUnlock() {
+    if (input.value === PAGE_PASSWORD) {
+      gate.style.display = 'none';
+      app.style.display = 'block';
+      initApp();
+    } else {
+      err.textContent = 'Wrong password';
+      input.value = '';
+      input.focus();
+    }
+  }
+  btn.addEventListener('click', tryUnlock);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+})();
+
+/* ---------- 2. Main app ---------- */
+function initApp() {
+  const dateInput    = document.getElementById('dateInput');
+  const classSelect  = document.getElementById('classSelect');
+  const evalType     = document.getElementById('evalType');
+  const evalName     = document.getElementById('evalName');
+  const maxScore     = document.getElementById('maxScore');
+  const maxDisplay   = document.getElementById('maxDisplay');
+  const formArea     = document.getElementById('formArea');
+  const tbodyEval    = document.querySelector('#evalTable tbody');
+  const tbodyBeh     = document.querySelector('#behaviorTable tbody');
+  const submitBtn    = document.getElementById('submit');
+  const msg          = document.getElementById('msg');
+  const pwInput      = document.getElementById('pw');
+
+  dateInput.value = new Date().toISOString().slice(0, 10);
+
+  maxScore.addEventListener('input', () => {
+    maxDisplay.textContent = maxScore.value || 100;
+    tbodyEval.querySelectorAll('tr').forEach(tr => computeRow(tr));
+  });
+
+  classSelect.addEventListener('change', loadStudents);
+
+  async function loadStudents() {
+    const cls = classSelect.value;
+    if (!cls) {
+      formArea.style.display = 'none';
+      return;
+    }
+    formArea.style.display = 'block';
+    tbodyEval.innerHTML = '<tr><td colspan="8" class="loading">Loading students...</td></tr>';
+    tbodyBeh.innerHTML = '<tr><td colspan="8" class="loading">Loading students...</td></tr>';
+
+    try {
+      const url = API_URL + '?action=getStudents&class=' + encodeURIComponent(cls);
+      const res = await fetch(url);
+      const students = await res.json();
+      renderAcademic(students);
+      renderBehavior(students);
+    } catch (e) {
+      tbodyEval.innerHTML = '<tr><td colspan="8" class="loading">Error: ' + e.message + '</td></tr>';
+      tbodyBeh.innerHTML = '<tr><td colspan="8" class="loading">Error: ' + e.message + '</td></tr>';
+    }
+  }
+
+  /* ---------- Academic table ---------- */
+  function renderAcademic(students) {
+    tbodyEval.innerHTML = '';
+    if (!students.length) {
+      tbodyEval.innerHTML = '<tr><td colspan="8" class="loading">No students found.</td></tr>';
+      return;
+    }
+
+    students.forEach(s => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${s.classNo}</td>
+        <td>${s.studentNo}</td>
+        <td>${s.firstname} ${s.lastname}</td>
+        <td><input type="number" class="score-input" min="0" placeholder="—"></td>
+        <td class="total-cell">—</td>
+        <td class="grade-cell">—</td>
+        <td class="status-cell"></td>
+        <td><input type="text" class="remark" placeholder=""></td>
+      `;
+
+      const statusCell = tr.querySelector('.status-cell');
+      ['Pass', 'Fail', 'Pending'].forEach(st => {
+        const btn = document.createElement('button');
+        btn.textContent = st;
+        btn.className = 'status-btn';
+        btn.dataset.status = st;
+        if (st === 'Pending') btn.classList.add('active-pending');
+        btn.addEventListener('click', () => {
+          statusCell.querySelectorAll('.status-btn').forEach(b => {
+            b.classList.remove('active-pass', 'active-fail', 'active-pending');
+          });
+          const cls = st === 'Pass' ? 'active-pass'
+                    : st === 'Fail' ? 'active-fail'
+                    : 'active-pending';
+          btn.classList.add(cls);
+          tr.dataset.status = st;
+          tr.dataset.manualStatus = 'true';
+        });
+        statusCell.appendChild(btn);
+      });
+
+      tr.dataset.status    = 'Pending';
+      tr.dataset.classNo   = s.classNo;
+      tr.dataset.studentNo = s.studentNo;
+      tr.dataset.firstname = s.firstname;
+      tr.dataset.lastname  = s.lastname;
+
+      const scoreInput = tr.querySelector('.score-input');
+      scoreInput.addEventListener('input', () => computeRow(tr));
+
+      tbodyEval.appendChild(tr);
+    });
+  }
+
+  function computeRow(tr) {
+    const scoreInput = tr.querySelector('.score-input');
+    const totalCell  = tr.querySelector('.total-cell');
+    const gradeCell  = tr.querySelector('.grade-cell');
+    const score      = parseFloat(scoreInput.value);
+    const max        = parseFloat(maxScore.value) || 100;
+
+    if (isNaN(score) || score < 0 || score > max) {
+      totalCell.textContent = '—';
+      gradeCell.innerHTML = '—';
+      return;
+    }
+
+    const percentage = (score / max) * 100;
+    totalCell.textContent = score + ' / ' + max;
+
+    let grade, gradeClass;
+    if (percentage >= 80)      { grade = 'A'; gradeClass = 'grade-a'; }
+    else if (percentage >= 70) { grade = 'B'; gradeClass = 'grade-b'; }
+    else if (percentage >= 60) { grade = 'C'; gradeClass = 'grade-c'; }
+    else if (percentage >= 50) { grade = 'D'; gradeClass = 'grade-d'; }
+    else                       { grade = 'F'; gradeClass = 'grade-f'; }
+
+    gradeCell.innerHTML = `<span class="grade-badge ${gradeClass}">${grade}</span>`;
+    tr.dataset.grade = grade;
+
+    if (tr.dataset.manualStatus !== 'true') {
+      const statusCell = tr.querySelector('.status-cell');
+      statusCell.querySelectorAll('.status-btn').forEach(b => {
+        b.classList.remove('active-pass', 'active-fail', 'active-pending');
+      });
+      const passBtn = [...statusCell.querySelectorAll('.status-btn')].find(b => b.dataset.status === 'Pass');
+      const failBtn = [...statusCell.querySelectorAll('.status-btn')].find(b => b.dataset.status === 'Fail');
+      if (percentage >= 50) {
+        if (passBtn) passBtn.classList.add('active-pass');
+        tr.dataset.status = 'Pass';
+      } else {
+        if (failBtn) failBtn.classList.add('active-fail');
+        tr.dataset.status = 'Fail';
+      }
+    }
+  }
+
+  /* ---------- Behavior table ---------- */
+  function renderBehavior(students) {
+    tbodyBeh.innerHTML = '';
+    if (!students.length) {
+      tbodyBeh.innerHTML = '<tr><td colspan="8" class="loading">No students found.</td></tr>';
+      return;
+    }
+
+    students.forEach(s => {
+      const tr = document.createElement('tr');
+      let behaviorCells = '';
+      BEHAVIORS.forEach(b => {
+        behaviorCells += `
+          <td class="behavior-cell">
+            <div class="behavior-btns">
+              <button class="beh-btn" data-beh="${b.key}" data-val="Consistently">✔ Consistently</button>
+              <button class="beh-btn active-sometimes" data-beh="${b.key}" data-val="Sometimes">◐ Sometimes</button>
+              <button class="beh-btn" data-beh="${b.key}" data-val="Rarely">✘ Rarely</button>
+            </div>
+          </td>
+        `;
+      });
+
+      tr.innerHTML = `
+        <td>${s.classNo}</td>
+        <td>${s.firstname} ${s.lastname}</td>
+        ${behaviorCells}
+        <td><textarea class="remark" rows="2" style="width:100%; font-size:12px;" placeholder="Comment for report card..."></textarea></td>
+      `;
+
+      // default values per behavior
+      tr.dataset.behParticipation  = 'Sometimes';
+      tr.dataset.behFocus          = 'Sometimes';
+      tr.dataset.behRespect        = 'Sometimes';
+      tr.dataset.behResponsibility = 'Sometimes';
+      tr.dataset.behCollaboration  = 'Sometimes';
+
+      tr.dataset.classNo   = s.classNo;
+      tr.dataset.studentNo = s.studentNo;
+      tr.dataset.firstname = s.firstname;
+      tr.dataset.lastname  = s.lastname;
+
+      // wire up behavior buttons
+      tr.querySelectorAll('.beh-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const beh = btn.dataset.beh;
+          const val = btn.dataset.val;
+
+          tr.querySelectorAll(`.beh-btn[data-beh="${beh}"]`).forEach(b => {
+            b.classList.remove('active-consistently', 'active-sometimes', 'active-rarely');
+          });
+
+          if (val === 'Consistently') btn.classList.add('active-consistently');
+          else if (val === 'Sometimes') btn.classList.add('active-sometimes');
+          else btn.classList.add('active-rarely');
+
+          const camelKey = 'beh' + beh.charAt(0).toUpperCase() + beh.slice(1);
+          tr.dataset[camelKey] = val;
+        });
+      });
+
+      tbodyBeh.appendChild(tr);
+    });
+  }
+
+  /* ---------- Submit ---------- */
+  submitBtn.addEventListener('click', async () => {
+    const cls = classSelect.value;
+    const date = dateInput.value;
+    const type = evalType.value;
+    const name = evalName.value.trim();
+    const max = maxScore.value;
+    const password = pwInput.value;
+
+    if (!cls || !date || !type || !name || !password) {
+      msg.textContent = 'Please fill class, evaluation type, name, date, and password.';
+      msg.style.color = 'red';
+      return;
+    }
+
+    // Build academic records
+    const academicRecords = [...tbodyEval.querySelectorAll('tr')].map(tr => {
+      const scoreVal = tr.querySelector('.score-input').value;
+      const score = scoreVal === '' ? null : parseFloat(scoreVal);
+      return {
+        classNo:    tr.dataset.classNo,
+        studentNo:  tr.dataset.studentNo,
+        firstname:  tr.dataset.firstname,
+        lastname:   tr.dataset.lastname,
+        score:      score,
+        max:        parseFloat(max),
+        percentage: score !== null ? ((score / parseFloat(max)) * 100).toFixed(1) : null,
+        grade:      tr.dataset.grade || '',
+        status:     tr.dataset.status || 'Pending',
+        remark:     tr.querySelector('.remark').value
+      };
+    });
+
+    // Build behavior records
+    const behaviorRecords = [...tbodyBeh.querySelectorAll('tr')].map(tr => ({
+      classNo:        tr.dataset.classNo,
+      studentNo:      tr.dataset.studentNo,
+      firstname:      tr.dataset.firstname,
+      lastname:       tr.dataset.lastname,
+      participation:  tr.dataset.behParticipation,
+      focus:          tr.dataset.behFocus,
+      respect:        tr.dataset.behRespect,
+      responsibility: tr.dataset.behResponsibility,
+      collaboration:  tr.dataset.behCollaboration,
+      comment:        tr.querySelector('.remark').value
+    }));
+
+    if (!academicRecords.length) {
+      msg.textContent = 'No students to submit.';
+      msg.style.color = 'red';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    msg.textContent = 'Saving...';
+    msg.style.color = '#333';
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          type: 'evaluation',
+          password,
+          date,
+          evalType: type,
+          evalName: name,
+          maxScore: parseFloat(max),
+          class: cls,
+          academicRecords,
+          behaviorRecords
+        })
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        msg.textContent = '❌ ' + (data.error || 'Submission failed');
+        msg.style.color = 'red';
+        submitBtn.disabled = false;
+        return;
+      }
+
+      msg.textContent = `Saved ${data.saved || academicRecords.length} records ✓`;
+      msg.style.color = 'green';
+      setTimeout(reset, 1500);
+
+    } catch (e) {
+      msg.textContent = 'Network error: ' + e.message;
+      msg.style.color = 'red';
+      submitBtn.disabled = false;
+    }
+  });
+
+  function reset() {
+    tbodyEval.innerHTML = '';
+    tbodyBeh.innerHTML = '';
+    classSelect.value = '';
+    evalType.value = '';
+    evalName.value = '';
+    maxScore.value = 100;
+    maxDisplay.textContent = '100';
+    dateInput.value = new Date().toISOString().slice(0, 10);
+    pwInput.value = '';
+    msg.textContent = '';
+    msg.style.color = '';
+    formArea.style.display = 'none';
+    submitBtn.disabled = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+</script>
+</body>
+</html>
